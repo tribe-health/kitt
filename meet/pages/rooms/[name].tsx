@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { useServerUrl } from '../../lib/client-utils';
 import { VideoConference } from '../../components/VideoConference';
 import { LocalUserChoices, PreJoin } from '../../components/PreJoin';
+import { gptJoin } from '../../lib/server-utils';
 
 const Home: NextPage = () => {
   const router = useRouter();
@@ -111,6 +112,10 @@ const ActiveRoom = ({ roomName, userChoices, onLeave }: ActiveRoomProps) => {
           video={userChoices.videoEnabled}
           audio={userChoices.audioEnabled}
           onDisconnected={onLeave}
+          onConnected={() => {
+            // tell gpt to join...
+            gptJoin(roomName)
+          }}
         >
           <VideoConference chatMessageFormatter={formatChatMessageLinks} />
         </LiveKitRoom>
