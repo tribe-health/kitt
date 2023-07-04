@@ -174,7 +174,7 @@ func (t *Transcriber) start() error {
 			}
 
 			if resp.Error != nil {
-				continue
+				break
 			}
 
 			// Read the whole transcription and put inside one string
@@ -220,8 +220,9 @@ func (t *Transcriber) start() error {
 
 func (t *Transcriber) Close() {
 	t.cancel()
-	<-t.closeCh
+	t.oggReader.Close()
 	t.oggWriter.Close()
+	<-t.closeCh
 	close(t.results)
 }
 

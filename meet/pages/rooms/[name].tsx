@@ -1,8 +1,4 @@
-import {
-  LiveKitRoom,
-  useToken,
-  formatChatMessageLinks,
-} from '@livekit/components-react';
+import { LiveKitRoom, useToken, formatChatMessageLinks } from '@livekit/components-react';
 import { RoomOptions, VideoPresets } from 'livekit-client';
 
 import type { NextPage } from 'next';
@@ -13,6 +9,8 @@ import { useServerUrl } from '../../lib/client-utils';
 import { VideoConference } from '../../components/VideoConference';
 import { LocalUserChoices, PreJoin } from '../../components/PreJoin';
 import { gptJoin } from '../../lib/server-utils';
+
+const nameReg = new RegExp('^[a-zA-Z0-9_-]{1,64}$');
 
 const Home: NextPage = () => {
   const router = useRouter();
@@ -37,9 +35,11 @@ const Home: NextPage = () => {
           ></ActiveRoom>
         ) : (
           <div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>
-
             <PreJoin
               onError={(err) => console.log('error while setting up prejoin', err)}
+              onValidate={(values) => {
+                return nameReg.test(values.username);
+              }}
               defaults={{
                 username: '',
                 videoEnabled: true,

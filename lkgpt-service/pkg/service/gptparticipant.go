@@ -145,6 +145,15 @@ func ConnectGPTParticipant(url, token string, sttClient *stt.Client, ttsClient *
 	p.gptTrack = track
 	p.room = room
 
+	go func() {
+		// Check if there's no participant when KITT joins.
+		// It can happen when the participant who created the room directly leaves.
+		time.Sleep(5 * time.Second)
+		if len(room.GetParticipants()) == 0 {
+			p.Disconnect()
+		}
+	}()
+
 	return p, nil
 }
 
@@ -156,6 +165,7 @@ func (p *GPTParticipant) OnDisconnected(f func()) {
 }
 
 func (p *GPTParticipant) Disconnect() {
+	logger.Infow("disconnecting gpt participant", "room", p.room.Name())
 	p.room.Disconnect()
 
 	for _, transcriber := range p.transcribers {
@@ -165,14 +175,16 @@ func (p *GPTParticipant) Disconnect() {
 	p.cancel()
 
 	p.lock.Lock()
-	if p.onDisconnected != nil {
-		p.onDisconnected()
-	}
+	onDisconnected := p.onDisconnected
 	p.lock.Unlock()
+
+	if onDisconnected != nil {
+		onDisconnected()
+	}
 }
 
 func (p *GPTParticipant) trackPublished(publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
-	if publication.Source() != livekit.TrackSource_MICROPHONE || rp.Identity() == BotIdentity {
+	if publication.Source() != livekit.TrackSource_MICROPHONE {
 		return
 	}
 
@@ -242,19 +254,19 @@ func (p *GPTParticipant) trackSubscribed(track *webrtc.TrackRemote, publication 
 
 func (p *GPTParticipant) trackUnsubscribed(track *webrtc.TrackRemote, publication *lksdk.RemoteTrackPublication, rp *lksdk.RemoteParticipant) {
 	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	if transcriber, ok := p.transcribers[rp.SID()]; ok {
+		p.lock.Unlock()
 		transcriber.Close()
+		p.lock.Lock()
 		delete(p.transcribers, rp.SID())
 	}
+	p.lock.Unlock()
 }
 
 func (p *GPTParticipant) participantDisconnected(rp *lksdk.RemoteParticipant) {
 	participants := p.room.GetParticipants()
 	logger.Debugw("participant disconnected", "numParticipants", len(participants))
-	// TODO(theomonnom) This should be 0?
-	if len(participants) <= 1 {
+	if len(participants) == 0 {
 		p.Disconnect()
 	}
 }
@@ -331,7 +343,7 @@ func (p *GPTParticipant) onTranscriptionReceived(result RecognizeResult, rp *lks
 	p.lock.Unlock()
 
 	shouldAnswer := false
-	if len(p.room.GetParticipants()) == 2 {
+	if len(p.room.GetParticipants()) == 1 {
 		// Always answer when we're alone with KITT
 		if activeParticipant == nil {
 			activeParticipant = rp
